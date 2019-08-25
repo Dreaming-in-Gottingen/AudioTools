@@ -1,0 +1,29 @@
+audio tools for wav mux/dmx, SRC, Mix, audio dsp
+
+
+
+tool composition:
+
+wav_utils:          wav ops, such as detect sample_rate/chn/duration from a wav file, write a wav file by pcm data.
+test:               test wav_utils.
+CStdWavGenerator:   generator for sin/square/triangle.
+
+
+
+
+How to get so or bin?
+
+1.wav_utils -> libwav_ops.so
+  cd wav_utils; make
+
+2.tests
+  cd tests; make
+
+3.CStdWavGenerator
+  cd CStdWavGenerator; make
+
+
+
+How to test?
+
+  for bin, it promt when error input.
