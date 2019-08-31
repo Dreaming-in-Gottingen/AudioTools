@@ -1,4 +1,13 @@
-#include <stdio.h>
+/*
+ *******************************************************
+ * Author       : jingzhou.zhang
+ * Last modified: 2019-08-31 12:04
+ * Email        : zjz1988314@gmail.com
+ * Filename     : StandardWaveGenerator.c
+ * Description  : sin/square/triangle generator
+ ********************************************************
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -109,10 +118,11 @@ void audio_fix_wavheader(struct WaveHeader *pHeader, int sampleRate, int chnCnt,
     pHeader->data_sz = pcmSize;
 }
 
-void audio_generator(short *pPcmBuf, int pcmLen, int wavType, int wavSR, int wavChn, int wavPeriod)
+void audio_generator(short *pPcmBuf, int pcmLen, int wavType, int wavSR, int wavChn, int wavPeriod, int pcmGain)
 {
     float totalPeriodW;
     int semiPeriod;
+    double gainFactor = pow(10, pcmGain/20.0);
     switch(wavType)
     {
         case 0:
@@ -122,26 +132,29 @@ void audio_generator(short *pPcmBuf, int pcmLen, int wavType, int wavSR, int wav
                 for (int i=0; i<pcmLen/2; i++)
                 {
                     pPcmBuf[i] = 32767*sin(i*totalPeriodW);
+                    pPcmBuf[i] = (short)(pPcmBuf[i] * gainFactor);
                 }
             }
             else
             {
                 for (int i=0; i<pcmLen/4; i++)
                 {
-                    pPcmBuf[2*i] = pPcmBuf[2*i+1] = 32767*sin(i*totalPeriodW);
+                    double val = 32767.0 * sin(i * totalPeriodW);
+                    pPcmBuf[2*i] = pPcmBuf[2*i+1] = (short)(val * gainFactor);
                 }
             }
             break;
         case 1:
             semiPeriod = wavSR*wavPeriod/1000L/2;
+            short val = (short)(32767.0 * gainFactor);
             if (wavChn == 1)
             {
                 for (int i=0; i<pcmLen/2; i++)
                 {
                     if (i/semiPeriod%2==0)
-                        pPcmBuf[i] = 32767;
+                        pPcmBuf[i] = val;
                     else
-                        pPcmBuf[i] = -32768;
+                        pPcmBuf[i] = -val;
                 }
             }
             else
@@ -149,9 +162,9 @@ void audio_generator(short *pPcmBuf, int pcmLen, int wavType, int wavSR, int wav
                 for (int i=0; i<pcmLen/4; i++)
                 {
                     if (i/semiPeriod%2==0)
-                        pPcmBuf[2*i] = pPcmBuf[2*i+1] = 32767;
+                        pPcmBuf[2*i] = pPcmBuf[2*i+1] = val;
                     else
-                        pPcmBuf[2*i] = pPcmBuf[2*i+1] = -32768;
+                        pPcmBuf[2*i] = pPcmBuf[2*i+1] = -val;
                 }
             }
             break;
@@ -163,9 +176,17 @@ void audio_generator(short *pPcmBuf, int pcmLen, int wavType, int wavSR, int wav
                 {
                     int offsetCnt = i/semiPeriod;
                     if (offsetCnt%2 == 0)
-                        pPcmBuf[i] = -65535LL*(i-(offsetCnt*semiPeriod + semiPeriod/2))/semiPeriod;
+                    {
+                        //pPcmBuf[i] = -65535LL*(i-(offsetCnt*semiPeriod + semiPeriod/2))/semiPeriod;
+                        short val = -65535LL*(i-(offsetCnt*semiPeriod + semiPeriod/2))/semiPeriod;
+                        pPcmBuf[i] = (short)(gainFactor * val);
+                    }
                     else
-                        pPcmBuf[i] = 65535LL*(i-(offsetCnt*semiPeriod + 3*semiPeriod/2))/semiPeriod;
+                    {
+                        //pPcmBuf[i] = 65535LL*(i-(offsetCnt*semiPeriod + 3*semiPeriod/2))/semiPeriod;
+                        short val = 65535LL*(i-(offsetCnt*semiPeriod + 3*semiPeriod/2))/semiPeriod;
+                        pPcmBuf[i] = (short)(gainFactor * val);
+                    }
                 }
             }
             else
@@ -173,10 +194,11 @@ void audio_generator(short *pPcmBuf, int pcmLen, int wavType, int wavSR, int wav
                 for (int i=0; i<pcmLen/4; i++)
                 {
                     int offsetCnt = i/semiPeriod;
+                    short val = -65535LL*(i-(offsetCnt*semiPeriod + semiPeriod/2))/semiPeriod;
                     if (offsetCnt%2 == 0)
-                        pPcmBuf[2*i] = pPcmBuf[2*i+1] = -65535LL*(i-(offsetCnt*semiPeriod + semiPeriod/2))/semiPeriod;
+                        pPcmBuf[2*i] = pPcmBuf[2*i+1] = (short)(gainFactor * val);
                     else
-                        pPcmBuf[2*i] = pPcmBuf[2*i+1] = 65535LL*(i-(offsetCnt*semiPeriod + 3*semiPeriod/2))/semiPeriod;
+                        pPcmBuf[2*i] = pPcmBuf[2*i+1] = -(short)(gainFactor * val);
                 }
             }
             break;
@@ -191,10 +213,11 @@ int main(int argc, char **argv)
     int wavPeriod = 100;
     int wavSR = 8000;
     int wavChn = 1;
+    int wavMaxGain = 0; // 20lg(pcm_val/32768) = gain
 
-    if (argc != 6)
+    if (argc != 7)
     {
-        puts("error inputs! param must be this: StandardWavGenerator type(0-sin,1-square,2-triangle) duration(ms) period(ms) sample_rate channel");
+        puts("error inputs! param must be this: StandardWavGenerator type(0-sin,1-square,2-triangle) duration(ms) period(ms) sample_rate channel gain");
         return -1;
     }
     else
@@ -204,6 +227,13 @@ int main(int argc, char **argv)
         wavPeriod = atoi(argv[3]);
         wavSR = atoi(argv[4]);
         wavChn = atoi(argv[5]);
+        wavMaxGain = atoi(argv[6]);
+    }
+
+    if (wavMaxGain > 0)
+    {
+        printf("Input gain(%d) error! should be nagative value! use default(0dB)!\n", wavMaxGain);
+        wavMaxGain = 0;
     }
 
     char wavName[64] = {0};
@@ -227,7 +257,7 @@ int main(int argc, char **argv)
     if (!dstFp)
     {
         printf("open dst file(%s) failed!\n", wavName);
-        ret = -1;
+        return -1;
     }
     // set default chn = 1
     int pcmLen = wavDuration * wavSR * wavChn * 2LL / 1000;
@@ -237,9 +267,9 @@ int main(int argc, char **argv)
 
     short *pPcmBuf = malloc(pcmLen);
 
-    audio_generator(pPcmBuf, pcmLen, wavType, wavSR, wavChn, wavPeriod);
+    audio_generator(pPcmBuf, pcmLen, wavType, wavSR, wavChn, wavPeriod, wavMaxGain);
     fwrite(pPcmBuf, 1, pcmLen, dstFp);
-    printf("get %s with sample_rate=%d, channle=%d, duration=%d ms, period=%d ms, pcmLen:%d\n", wavName, wavSR, wavChn, wavDuration, wavPeriod, pcmLen);
+    printf("get %s with sample_rate=%d, channle=%d, duration=%d ms, period=%d ms, gain=%d dB, pcmLen:%d\n", wavName, wavSR, wavChn, wavDuration, wavPeriod, wavMaxGain, pcmLen);
 
     free(pPcmBuf);
     fclose(dstFp);
